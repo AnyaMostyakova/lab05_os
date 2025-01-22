@@ -1,0 +1,60 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <string.h>
+
+void search_files(const char *dir_path, long min_size, long max_size, FILE *output) {
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        perror("Error opening directory");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, entry->d_name);
+
+        struct stat st;
+        if (stat(full_path, &st) == 0) {
+            if (S_ISDIR(st.st_mode)) {
+                search_files(full_path, min_size, max_size, output);
+            } else if (S_ISREG(st.st_mode)) {
+                if (st.st_size >= min_size && st.st_size <= max_size) {
+                    fprintf(output, "%s, %s, %ld\n", full_path, entry->d_name, st.st_size);
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s <directory> <min_size> <max_size> <output_file>\n", argv[0]);
+        return 1;
+    }
+
+    const char *dir_path = argv[1];
+    long min_size = atol(argv[2]);
+    long max_size = atol(argv[3]);
+    const char *output_file = argv[4];
+
+    FILE *output = fopen(output_file, "w");
+    if (output == NULL) {
+        perror("Error opening output file");
+        return 1;
+    }
+
+    search_files(dir_path, min_size, max_size, output);
+    fclose(output);
+
+    printf("Search completed. Results saved to %s.\n", output_file);
+    return 0;
+}
